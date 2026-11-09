@@ -70,3 +70,6 @@
 .fleet-summary-collapse:hover,.fleet-summary-restore:hover{background:var(--soft)}
 .fleet-summary-collapse:focus-visible,.fleet-summary-restore:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.fleet-planning .fleet-summary{transition:none}}
+
+.fleet-planning .pickup-plan-tools{display:none!important}
+.fleet-planning .route-choices{grid-column:1 / -1}
