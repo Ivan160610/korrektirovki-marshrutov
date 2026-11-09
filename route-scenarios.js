@@ -15,37 +15,44 @@
  function scenarioTime(n,s,variant){const save=current;current=n;const value=estimate(s,variant);current=save;return value}
 function fleetTimeTable(n,variant,model,doc,onSelect){
  const table=document.createElement('table');table.className='fleet-time-table fleet-comparison-table';
- table.setAttribute('aria-label','Исходные 4 автобуса и выбранная схема: '+n+' автобусов');
- table.innerHTML='<thead><tr class="comparison-groups"><th colspan="2" scope="colgroup">Исходная схема · 4 автобуса</th><th colspan="3" scope="colgroup">Выбрано · '+n+' '+(n===5?'автобусов':n===6?'автобусов':'автобуса')+'</th></tr><tr><th scope="col">Маршрут</th><th scope="col">Время</th><th scope="col">Маршрут</th><th scope="col">Время</th><th scope="col">Изменение, %</th></tr></thead>';
- const rows=n===4?model.baseline:model.scenarios[n].stats,tbody=document.createElement('tbody');
+ table.setAttribute('aria-label','Сравнение схем на 4, 5 и 6 автобусов');
+ const schemes=[4,5,6],stats=count=>count===4?model.baseline:model.scenarios[count].stats;
+ table.innerHTML='<colgroup><col style="width:19%"><col style="width:9%"><col style="width:19%"><col style="width:9%"><col style="width:8%"><col style="width:19%"><col style="width:9%"><col style="width:8%"></colgroup><thead><tr class="comparison-groups">'+schemes.map(count=>'<th colspan="'+(count===4?2:3)+'" scope="colgroup" data-comparison-fleet="'+count+'" class="'+(count===n?'is-active':'')+'">'+(count===4?'Исходная схема · 4 автобуса':'Схема · '+count+' автобусов')+(count===n?' · на карте':'')+'</th>').join('')+'</tr><tr>'+schemes.map(count=>'<th scope="col">Маршрут</th><th scope="col">Время</th>'+(count===4?'':'<th scope="col">Изменение, %</th>')).join('')+'</tr></thead>';
+ const ids=[...new Set(schemes.flatMap(count=>stats(count).map(stat=>stat.id)))].sort((a,b)=>a-b),tbody=document.createElement('tbody');
  const format=value=>value.toLocaleString('ru-RU',{maximumFractionDigits:1});
- function routeCell(stat,source,side){
-  const cell=document.createElement('td');cell.className='comparison-route '+side;
-  if(!stat){cell.textContent='—';cell.setAttribute('aria-label','В исходной схеме маршрута нет');return cell}
+ function routeCell(stat,source,scenario){
+  const cell=document.createElement('td');cell.className='comparison-route';cell.dataset.comparisonFleet=scenario;
+  if(!stat){cell.textContent='—';cell.setAttribute('aria-label','В схеме на '+scenario+' автобусов маршрута нет');return cell}
   const route=source.routes.find(r=>r.id===stat.id),button=document.createElement('button');
   button.type='button';button.dataset.summaryRoute=stat.id;button.textContent='№'+stat.id;
   button.style.setProperty('--route-color',colors[stat.id-1]);button.title=route?.title||'Маршрут №'+stat.id;
-  button.setAttribute('aria-pressed',String(selected===stat.id));button.onclick=()=>onSelect?.(stat.id);cell.append(button);
+  button.setAttribute('aria-pressed',String(selected===stat.id));button.onclick=()=>{if(scenario!==current)apply(scenario);onSelect?.(stat.id)};cell.append(button);
   const label=document.createElement('small');label.className='table-route-start';label.textContent=route?.title||'Маршрут №'+stat.id;label.title=label.textContent;cell.append(label);
   const metrics=document.createElement('small');metrics.textContent=format(stat.km)+' км · '+stat.count+' чел.';cell.append(metrics);return cell;
  }
- for(const stat of rows){
-  if(selected&&stat.id!==selected)continue;
-  const before=model.baseline.find(b=>b.id===stat.id),tr=document.createElement('tr');tr.dataset.timeRoute=stat.id;
-  if(selected===stat.id)tr.classList.add('is-selected');
-  tr.append(routeCell(before,baseline,'comparison-baseline'));
-  const original=document.createElement('td');original.className='table-time';original.textContent=before?before[variant]+' мин':'—';
-  if(before){const basis=document.createElement('small');basis.textContent=variant==='night'&&before.measured?'замер':'план';original.append(basis)}tr.append(original,routeCell(stat,doc,'comparison-current'));
-  const value=n===4?stat[variant]:scenarioTime(n,stat,variant),time=document.createElement('td');time.className='table-time';time.textContent=(n===4?'':'≈ ')+value+' мин';tr.append(time);
-  const change=document.createElement('td');change.className='table-change';
-  if(!before){change.textContent='Новый';change.classList.add('is-new');const detail=document.createElement('small');detail.textContent='нет исходного рейса';change.append(detail)}
-  else{
-   const delta=value-before[variant],pct=100*delta/before[variant],sign=delta<0?'−':delta>0?'+':'';
-   change.dataset.delta=delta;change.dataset.percent=pct.toFixed(1);change.classList.add(delta<0?'is-saving':delta>0?'is-longer':'is-same');change.textContent=sign+format(Math.abs(pct))+'%';
-   const minutes=document.createElement('small');minutes.textContent=delta===0?'без изменений':sign+Math.abs(delta)+' мин';change.append(minutes);
-   change.setAttribute('aria-label',delta===0?'Время без изменений':(delta<0?'Сокращение на ':'Увеличение на ')+format(Math.abs(pct))+' процента, '+Math.abs(delta)+' минут');
+ for(const id of ids){
+  if(selected&&id!==selected)continue;
+  const before=model.baseline.find(b=>b.id===id),tr=document.createElement('tr');tr.dataset.timeRoute=id;
+  if(selected===id)tr.classList.add('is-selected');
+  for(const count of schemes){
+   const stat=stats(count).find(s=>s.id===id),source=count===4?baseline:count===n?doc:model.scenarios[count].data;
+   tr.append(routeCell(stat,source,count));
+   const time=document.createElement('td');time.className='table-time';time.dataset.comparisonFleet=count;
+   if(!stat){time.textContent='—';tr.append(time);if(count>4){const empty=document.createElement('td');empty.textContent='—';tr.append(empty)}continue}
+   const value=count===4?stat[variant]:scenarioTime(count,stat,variant);time.textContent=(count===4?'':'≈ ')+value+' мин';
+   if(count===4){const basis=document.createElement('small');basis.textContent=variant==='night'&&stat.measured?'замер':'план';time.append(basis)}tr.append(time);
+   if(count===4)continue;
+   const change=document.createElement('td');change.className='table-change';change.dataset.comparisonFleet=count;
+   if(!before){change.textContent='Новый';change.classList.add('is-new');const detail=document.createElement('small');detail.textContent='нет исходного рейса';change.append(detail)}
+   else{
+    const delta=value-before[variant],pct=100*delta/before[variant],sign=delta<0?'−':delta>0?'+':'';
+    change.dataset.delta=delta;change.dataset.percent=pct.toFixed(1);change.classList.add(delta<0?'is-saving':delta>0?'is-longer':'is-same');change.textContent=sign+format(Math.abs(pct))+'%';
+    const minutes=document.createElement('small');minutes.textContent=delta===0?'без изменений':sign+Math.abs(delta)+' мин';change.append(minutes);
+    change.setAttribute('aria-label',delta===0?'Время без изменений':(delta<0?'Сокращение на ':'Увеличение на ')+format(Math.abs(pct))+' процента, '+Math.abs(delta)+' минут');
+   }
+   tr.append(change);
   }
-  tr.append(change);tbody.append(tr);
+  tbody.append(tr);
  }
  table.append(tbody);const scroll=document.createElement('div');scroll.className='fleet-comparison-scroll';scroll.tabIndex=0;scroll.setAttribute('role','region');scroll.setAttribute('aria-label','Сравнение маршрутов; на узком экране таблицу можно прокрутить вправо');scroll.append(table);return scroll;
 }
@@ -79,7 +86,7 @@ function transferCard(id,doc){
   const subtitle=document.createElement('p');subtitle.className='fleet-summary-subtitle';subtitle.textContent=(variant==='night'?'Вечер':'Утро')+' · '+(outbound?'выезд '+(variant==='night'?'20:15':'08:15'):'прибытие к '+(variant==='night'?'19:45':'07:45'))+(selected?' · маршрут №'+selected:' · все маршруты');panel.append(subtitle);
   if(!fleet&&!outbound){panel.append(Object.assign(document.createElement('p'),{textContent:'Загружаем маршруты…'}));return}
   if(outbound){for(const r of data.routes){const times=data.points.filter(p=>p.route===r.id&&p.dropoff).map(p=>p[variant==='night'?'evening':'morning']).filter(Number.isFinite),value=times.length?Math.max(...times)-(variant==='night'?1215:495):null;const row=document.createElement('button');row.className='fleet-summary-row';row.dataset.summaryRoute=r.id;row.textContent='№'+r.id+' · '+(value===null?'—':value+' мин')+' · план';row.onclick=()=>openRoute(r.id);panel.append(row)}}else panel.append(fleetTimeTable(current,variant,fleet,data,openRoute));
-  const caption=document.createElement('p');caption.className='fleet-summary-caption';caption.textContent=outbound?'Плановое время развоза.':current===4?'Исходная схема — база сравнения. Вечером №1/№2 — замер; остальные значения — план.':'Процент — изменение времени относительно исходного маршрута того же номера. Минус — быстрее, плюс — дольше. ≈ — расчёт; пеший подход не включён. Для новых №5/№6 исходного рейса нет.';panel.append(caption);
+  const caption=document.createElement('p');caption.className='fleet-summary-caption';caption.textContent=outbound?'Плановое время развоза.':'Схемы на 4, 5 и 6 автобусов показаны одновременно. Процент — изменение времени относительно исходного №1–№4. Минус — быстрее, плюс — дольше. ≈ — расчёт; вечером исходные №1/№2 — замер. Для новых №5/№6 исходного рейса нет.';panel.append(caption);
   if(!outbound&&current>4){if(current===5){const warning=document.createElement('p');warning.className='pickup-plan-note';warning.textContent='№5 — сборный маршрут: утром он длиннее остальных. Схема с 6 автобусами распределяет нагрузку ровнее.';panel.append(warning)}for(const r of data.routes.filter(r=>r.id>=5)){const card=transferCard(r.id,data);if(card)panel.append(card)}}
   if(!outbound&&compact&&stopPlan&&selected){const r=stopPlan.fleets[current].find(r=>r.route===selected);if(r){const card=consolidationCard(r);panel.append(card)}}
  }
