@@ -9,7 +9,7 @@
    const request=fetch(`./local-basemap-${theme}-${level}.json?v=20261020-fast`,{credentials:'omit'}).then(response=>{if(!response.ok)throw Error('Local map '+response.status);return response.json()}).then(value=>{if(value.version!==1||value.theme!==theme||value.level!==level||!value.tiles)throw Error('Local map format');packages.set(key,value);pending.delete(key);stamp='';if(lastView)draw(...lastView)}).catch(()=>{pending.delete(key);failed.add(key);if(!data){layer.dataset.state='error';onState('error')}});pending.set(key,request);
   }
   function draw(view,width,dark){
-   lastView=[{...view},width,dark];const desired=view.w/Math.max(width,1)>.65?1:4,theme=dark?'dark':'light';ensure(theme,desired);if(desired!==1)ensure(theme,1);
+   lastView=[{...view},width,dark];const desired=width>=900&&!dark?4:view.w/Math.max(width,1)>.65?1:4,theme=dark?'dark':'light';ensure(theme,desired);if(desired!==1)ensure(theme,1);
    data=packages.get(theme+'/'+desired)||packages.get(theme+'/1');if(!data)return;
    const [left,top,w,h]=data.bounds,size=data.tileSize,level=data.level,margin=size/2;
    const x1=Math.max(0,Math.floor((view.x-left-margin)/size)),x2=Math.min(Math.ceil(w/size)-1,Math.floor((view.x+view.w-left+margin)/size));
